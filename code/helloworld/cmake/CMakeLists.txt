@@ -8,5 +8,5 @@ set (CMAKE_BUILD_TYPE Debug)
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 link_directories("../../../libuv/.libs")
-target_link_libraries(${PROJECT_NAME} libuv.a)
+target_link_libraries(${PROJECT_NAME} libuv.a pthread)
 

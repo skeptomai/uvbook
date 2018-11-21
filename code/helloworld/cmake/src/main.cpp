@@ -1,30 +1,39 @@
 #include <iostream>
+#include <functional>
 #include <uv.h>
 
-struct my_idler {
-    uv_idle_t idler_;
+struct my_counter {
     int64_t counter = 0;
 };
 
 class UVManager {
-    typedef std::function<void(uv_idle_t*)> cb_t;
+
+public:
+    my_counter c_;
+
 private:
-    cb_t idle_cb_;
     uv_loop_t loop_;
-    my_idler idler_;
+    uv_idle_t idler_;
+
     UVManager(UVManager const & );
     UVManager &operator=(UVManager const &);
 
 public:
-    UVManager() {
+    UVManager(bool bAutoRun = false) {
         uv_loop_init(&loop_);
+        if(bAutoRun){
+            run();
+        }
     }
 
-    UVManager(uv_idle_cb icb) {
-        idle_cb_ = icb;
+    UVManager(uv_idle_cb icb, void *data = nullptr, bool bAutoRun=true) {
+        idler_.data = data;
         uv_loop_init(&loop_);
         uv_idle_init(&loop_, (uv_idle_t*)&idler_);
         uv_idle_start((uv_idle_t*)&idler_, icb);
+        if(bAutoRun){
+            run();
+        }
     }
 
     virtual ~UVManager(){
@@ -37,14 +46,17 @@ public:
 };
 
 int main() {
+    std::cout << "running the manager.." << std::endl;
+    my_counter c;
     UVManager uvm(
         [](uv_idle_t* handle) {
-            my_idler* my_h = (my_idler*)handle;
-            my_h->counter++;
-            if (my_h->counter >= 10e6)
+            my_counter* c = (my_counter*)(handle->data);
+            c->counter++;
+            if (c->counter >= 10e4)
                 uv_idle_stop(handle);
-        });
-    std::cout << "running the manager.." << std::endl;
+        }, (void*)&c);
+
     uvm.run();
+    std::cout << c.counter << std::endl;
     return 0;
 }
