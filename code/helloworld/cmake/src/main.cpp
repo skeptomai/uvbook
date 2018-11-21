@@ -2,14 +2,12 @@
 #include <functional>
 #include <uv.h>
 
-struct my_counter {
+struct MyCounter {
     int64_t counter = 0;
 };
 
+template <typename TData>
 class UVManager {
-
-public:
-    my_counter c_;
 
 private:
     uv_loop_t loop_;
@@ -26,8 +24,8 @@ public:
         }
     }
 
-    UVManager(uv_idle_cb icb, void *data = nullptr, bool bAutoRun=true) {
-        idler_.data = data;
+    UVManager(uv_idle_cb icb, const TData*data = nullptr, bool bAutoRun=true) {
+        idler_.data = (void*)data;
         uv_loop_init(&loop_);
         uv_idle_init(&loop_, (uv_idle_t*)&idler_);
         uv_idle_start((uv_idle_t*)&idler_, icb);
@@ -47,14 +45,14 @@ public:
 
 int main() {
     std::cout << "running the manager.." << std::endl;
-    my_counter c;
-    UVManager uvm(
+    MyCounter c;
+    UVManager<MyCounter> uvm(
         [](uv_idle_t* handle) {
-            my_counter* c = (my_counter*)(handle->data);
+            MyCounter* c = (MyCounter*)(handle->data);
             c->counter++;
             if (c->counter >= 10e4)
                 uv_idle_stop(handle);
-        }, (void*)&c);
+        }, &c);
 
     uvm.run();
     std::cout << c.counter << std::endl;
