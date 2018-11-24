@@ -1,22 +1,68 @@
-#include <assert.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <uv.h>
+#include <memory>
 #include <iostream>
 
 void on_read(uv_fs_t *req);
 
+template <typename TData>
+class UVManager :public TData {
 
+public:
+    uv_loop_t loop_;
+    uv_loop_t* ext_loop;
+    uv_idle_t idler_;
+
+private:
+    UVManager(UVManager const & );
+    UVManager &operator=(UVManager const &);
+
+public:
+    UVManager(uv_loop_t* pLoop = NULL, bool bAutoRun = false) : ext_loop(pLoop) {
+        if(!pLoop){
+            uv_loop_init(&loop_);
+        }
+
+        if(bAutoRun){
+            run();
+        }
+    }
+
+    UVManager(uv_idle_cb icb, bool bAutoRun=true) {
+        idler_.data = (void*)this;
+        uv_loop_init(&loop_);
+        uv_idle_init(&loop_, (uv_idle_t*)&idler_);
+        uv_idle_start((uv_idle_t*)&idler_, icb);
+        if(bAutoRun){
+            run();
+        }
+    }
+
+    virtual ~UVManager(){
+        uv_loop_close((ext_loop ? ext_loop : &loop_));
+    }
+
+    void run(){
+        uv_run((ext_loop ? ext_loop : &loop_), UV_RUN_DEFAULT);
+    }
+
+    uv_loop_t* loop() {
+        return (ext_loop ? ext_loop : &loop_);
+    }
+};
+
+template <typename TData>
 struct RequestPack {
 
     uv_fs_t open_req;
     uv_fs_t read_req;
     uv_fs_t write_req;
-
+    TData* data_;
 
 public:
-    RequestPack() {
+    RequestPack(TData* pdata=nullptr) : data_(pdata) {
         open_req.data = this;
         read_req.data = this;
         write_req.data = this;
@@ -52,14 +98,14 @@ void on_write(uv_fs_t *req) {
     }
     else {
         std::cout << "writing" << std::endl;
-        RequestPack* rpp = static_cast<RequestPack*>(req->data);
+        RequestPack<char>* rpp = static_cast<RequestPack<char>*>(req->data);
         uv_fs_read(uv_default_loop(), &(rpp->read_req), rpp->open_req.result, &iov, 1, -1, on_read);
         std::cout << "wrote.." << std::endl;
     }
 }
 
 void on_read(uv_fs_t *req) {
-    RequestPack* rpp = static_cast<RequestPack*>(req->data);
+    RequestPack<char>* rpp = static_cast<RequestPack<char>*>(req->data);
 
     std::cout << "on_read called" << std::endl;
 
@@ -82,7 +128,8 @@ void on_read(uv_fs_t *req) {
 }
 
 void on_open(uv_fs_t *req) {
-    RequestPack* rpp = static_cast<RequestPack*>(req->data);
+    std::cout << "on open" << std::endl;
+    RequestPack<char>* rpp = static_cast<RequestPack<char>*>(req->data);
 
     if (req->result >= 0) {
         MinBuf<char> mb(buffer, sizeof(buffer));
@@ -96,9 +143,12 @@ void on_open(uv_fs_t *req) {
 }
 
 int main(int argc, char **argv) {
-    RequestPack rp;
-    uv_fs_open(uv_default_loop(), &rp.open_req, argv[1], O_RDONLY, 0, on_open);
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    UVManager<RequestPack<char>> uvm(uv_default_loop(), false);
+    uvm.data_ = buffer;
+    std::cout <<  "even getting here?" << std::endl;
+    uv_fs_open(uvm.loop(), &uvm.open_req, argv[1], O_RDONLY, 0, on_open);
+    std::cout <<  "how about here?" << std::endl;
+    uvm.run();
 
     return 0;
 }
