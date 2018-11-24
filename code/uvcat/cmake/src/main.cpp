@@ -5,17 +5,20 @@
 #include <memory>
 #include <iostream>
 
+void on_open(uv_fs_t *req);
 void on_read(uv_fs_t *req);
+void on_write(uv_fs_t *req);
+
 
 template<typename TBufType>
 class MinBuf {
 
 public:
-    MinBuf(int btsize ) : data_(new TBufType[btsize]) {
-        iov_ = uv_buf_init(data_, btsize);
+    MinBuf(int btsize ) : data_(std::shared_ptr<TBufType>(new TBufType[btsize], std::default_delete<TBufType[]>())) {
+        iov_ = uv_buf_init(data_.get(), btsize);
     }
 
-    TBufType* data_;
+    std::shared_ptr<TBufType> data_;
     uv_buf_t iov_;
 };
 
